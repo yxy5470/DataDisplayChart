@@ -29,9 +29,10 @@ import {
   Brush,
 } from "recharts";
 
-// Multi-day data with full timestamps (spans across days/year boundary)
-const START = new Date("2025-12-30T00:00:00");
-const POINTS = 96; // 4 days, every hour
+// Multi-day data with full timestamps - 最近30天数据，每小时一个点
+const NOW = new Date();
+const START = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000); // 30天前
+const POINTS = 30 * 24; // 30天 * 24小时
 const monitorData = Array.from({ length: POINTS }).map((_, i) => {
   const d = new Date(START.getTime() + i * 60 * 60 * 1000);
   return {
@@ -55,11 +56,17 @@ const conditionData = Array.from({ length: POINTS }).map((_, i) => {
   };
 });
 
-function fmtAxis(iso: string) {
+function fmtAxis(iso: string, range?: TimeRange) {
   const d = new Date(iso);
   const M = String(d.getMonth() + 1).padStart(2, "0");
   const D = String(d.getDate()).padStart(2, "0");
   const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+
+  // 今天显示时:分，其他显示月/日 时:00
+  if (range === "today") {
+    return `${h}:${m}`;
+  }
   return `${M}/${D} ${h}:00`;
 }
 function fmtBrush(iso: string) {
@@ -169,11 +176,15 @@ export function DeviceDataModal() {
     电压: true, 温度: true, 湿度: false, 信号: false,
   });
   const [mode, setMode] = useState<DataMode>("monitor");
-  const [timeRange, setTimeRange] = useState<TimeRange>("today");
+  const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [customRange, setCustomRange] = useState<{ start: string; end: string }>({
-    start: "2025-12-30T00:00",
-    end: "2026-01-02T23:00",
+  const [customRange, setCustomRange] = useState<{ start: string; end: string }>(() => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      start: sevenDaysAgo.toISOString().slice(0, 16),
+      end: now.toISOString().slice(0, 16),
+    };
   });
   const [chartType, setChartType] = useState<ChartType>("line");
   const [showTip, setShowTip] = useState(false);
@@ -181,7 +192,60 @@ export function DeviceDataModal() {
   const [smoothWindow, setSmoothWindow] = useState(5);
 
   const isMonitor = mode === "monitor";
-  const rawData = isMonitor ? monitorData : conditionData;
+
+  // 根据时间范围过滤数据
+  const getFilteredData = () => {
+    const allData = isMonitor ? monitorData : conditionData;
+    const now = new Date();
+
+    if (timeRange === "today") {
+      // 今天：最近24小时
+      const startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      return allData.filter(d => new Date(d.time) >= startTime);
+    } else if (timeRange === "7d") {
+      // 近7天
+      const startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return allData.filter(d => new Date(d.time) >= startTime);
+    } else if (timeRange === "30d") {
+      // 近30天
+      const startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return allData.filter(d => new Date(d.time) >= startTime);
+    } else if (timeRange === "custom") {
+      // 自定义时间范围
+      const startTime = new Date(customRange.start);
+      const endTime = new Date(customRange.end);
+      return allData.filter(d => {
+        const t = new Date(d.time);
+        return t >= startTime && t <= endTime;
+      });
+    }
+    return allData;
+  };
+
+  const filteredData = getFilteredData();
+
+  // 根据时间范围对数据进行采样，避免数据点过多
+  const getSampledData = (data: any[]) => {
+    if (timeRange === "today") {
+      // 今天：每小时一个点已经合适
+      return data;
+    } else if (timeRange === "7d") {
+      // 近7天：每2小时一个点
+      return data.filter((_, i) => i % 2 === 0);
+    } else if (timeRange === "30d") {
+      // 近30天：每4小时一个点
+      return data.filter((_, i) => i % 4 === 0);
+    } else {
+      // 自定义：根据数据量决定
+      if (data.length > 200) {
+        const step = Math.ceil(data.length / 200);
+        return data.filter((_, i) => i % step === 0);
+      }
+      return data;
+    }
+  };
+
+  const rawData = getSampledData(filteredData);
   const data = isMonitor && smooth
     ? smoothSeries(rawData, MONITOR_LINES.map((l) => l.k), smoothWindow)
     : rawData;
@@ -200,6 +264,14 @@ export function DeviceDataModal() {
       if (visibleCondition.length === 1) return `${visibleCondition[0].name}工况数据趋势`;
       return "工况数据趋势";
     }
+  };
+
+  // 根据时间范围调整横坐标刻度间距
+  const getMinTickGap = () => {
+    if (timeRange === "today") return 30; // 今天显示更密集
+    if (timeRange === "7d") return 40;
+    if (timeRange === "30d") return 50;
+    return 40; // 自定义
   };
 
   return (
@@ -462,7 +534,7 @@ export function DeviceDataModal() {
 
             {/* Outer div is flex-1 and establishes height for the chart */}
             <div
-              key={`chart-${mode}-${chartType}-${uniqueUnits(visibleSeries).join(",")}`}
+              key={`chart-${mode}-${chartType}-${timeRange}-${uniqueUnits(visibleSeries).join(",")}`}
               className="flex-1 w-full"
               style={{ minHeight: 400 }}
             >
@@ -476,7 +548,7 @@ export function DeviceDataModal() {
                     {chartType === "bar" ? (
                       <BarChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                         <CartesianGrid key="bar-grid" strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis key="bar-xaxis" dataKey="time" tickFormatter={fmtAxis} tick={{ fontSize: 10, fill: "#64748b" }} stroke="#cbd5e1" minTickGap={40} />
+                        <XAxis key="bar-xaxis" dataKey="time" tickFormatter={(v) => fmtAxis(v, timeRange)} tick={{ fontSize: 10, fill: "#64748b" }} stroke="#cbd5e1" minTickGap={getMinTickGap()} />
                         {uniqueUnits(visibleSeries).map((u) => (
                           <YAxis
                             key={`bar-ax-${UNIT_AXIS[u].id}`}
@@ -504,7 +576,7 @@ export function DeviceDataModal() {
                     ) : (
                       <LineChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                         <CartesianGrid key="line-grid" strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis key="line-xaxis" dataKey="time" tickFormatter={fmtAxis} tick={{ fontSize: 10, fill: "#64748b" }} stroke="#cbd5e1" minTickGap={40} />
+                        <XAxis key="line-xaxis" dataKey="time" tickFormatter={(v) => fmtAxis(v, timeRange)} tick={{ fontSize: 10, fill: "#64748b" }} stroke="#cbd5e1" minTickGap={getMinTickGap()} />
                         {uniqueUnits(visibleSeries).map((u) => (
                           <YAxis
                             key={`line-ax-${UNIT_AXIS[u].id}`}
