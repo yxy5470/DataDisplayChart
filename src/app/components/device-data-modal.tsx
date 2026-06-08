@@ -14,7 +14,6 @@ import {
   LineChart as LineChartIcon,
   BarChart as BarChartIcon,
   Table as TableIcon,
-  Search,
   Download,
 } from "lucide-react";
 import {
@@ -190,6 +189,19 @@ export function DeviceDataModal() {
   const visibleCondition = CONDITION_LINES.filter((l) => conditionChecks[l.k]);
   const visibleSeries = isMonitor ? visibleMonitor : visibleCondition;
 
+  // 根据勾选内容生成图表标题
+  const getChartTitle = () => {
+    if (isMonitor) {
+      if (visibleMonitor.length === 0) return "监测数据";
+      if (visibleMonitor.length === 1) return `${visibleMonitor[0].name}监测数据趋势`;
+      return "监测数据趋势";
+    } else {
+      if (visibleCondition.length === 0) return "工况数据";
+      if (visibleCondition.length === 1) return `${visibleCondition[0].name}工况数据趋势`;
+      return "工况数据趋势";
+    }
+  };
+
   return (
     <div
       className="bg-white rounded-lg shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
@@ -203,7 +215,7 @@ export function DeviceDataModal() {
           <div className="flex items-center gap-2">
             <span className="w-1 h-5 bg-blue-500 rounded-sm" />
             <h2 className="text-slate-900" style={{ fontWeight: 600, fontSize: 16 }}>
-              设备数据分析详情 - 1号主水泵点位
+              运行数据分析-[未命名点位]
             </h2>
             <span className="ml-3 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded" style={{ fontSize: 11 }}>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -219,30 +231,30 @@ export function DeviceDataModal() {
         <div className="px-6 pb-4 flex items-center flex-wrap gap-x-5 gap-y-2">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500" style={{ fontSize: 12 }}>S/N：</span>
-            <code className="bg-slate-200/70 text-slate-600 px-1.5 py-0.5 rounded font-mono" style={{ fontSize: 11 }}>SN883921X</code>
+            <code className="bg-slate-200/70 text-slate-600 px-1.5 py-0.5 rounded font-mono" style={{ fontSize: 11 }}>CR120251120001</code>
           </div>
           <div className="h-3 w-px bg-slate-300" />
           <div className="flex items-center gap-1">
             <Zap className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500" />
             <span className="text-slate-500" style={{ fontSize: 12 }}>电压：</span>
-            <span className="text-slate-800" style={{ fontSize: 12, fontWeight: 500 }}>220V</span>
+            <span className="text-slate-800" style={{ fontSize: 12, fontWeight: 500 }}>12.6V</span>
           </div>
           <div className="h-3 w-px bg-slate-300" />
           <div className="flex items-center gap-1">
             <Signal className="w-3.5 h-3.5 text-blue-500" />
             <span className="text-slate-500" style={{ fontSize: 12 }}>4G信号：</span>
-            <span className="text-slate-800" style={{ fontSize: 12, fontWeight: 500 }}>强 <span className="text-slate-400">(-65dBm)</span></span>
+            <span className="text-slate-800" style={{ fontSize: 12, fontWeight: 500 }}>强（25 ASU）</span>
           </div>
           <div className="h-3 w-px bg-slate-300" />
           <div className="flex items-center gap-1">
             <Thermometer className="w-3.5 h-3.5 text-rose-500" />
             <span className="text-slate-500" style={{ fontSize: 12 }}>温湿度：</span>
-            <span className="text-slate-800" style={{ fontSize: 12, fontWeight: 500 }}>25℃ / 45%RH</span>
+            <span className="text-slate-800" style={{ fontSize: 12, fontWeight: 500 }}>25.0℃ / 45.0%RH</span>
           </div>
           <div className="h-3 w-px bg-slate-300" />
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500" style={{ fontSize: 12 }}>经纬度：</span>
-            <span className="text-slate-800 font-mono" style={{ fontSize: 12 }}>116.397, 39.908</span>
+            <span className="text-slate-800 font-mono" style={{ fontSize: 12 }}>116.397876°E，39.908843°N</span>
             <div className="relative">
               <button
                 onMouseEnter={() => setShowTip(true)}
@@ -265,16 +277,7 @@ export function DeviceDataModal() {
       {/* Body */}
       <div className="flex-1 flex min-h-0 px-6 py-4 gap-0">
         {/* Left Tree */}
-        <div className="w-[260px] border-r border-slate-200 pr-4 overflow-y-auto">
-          <div className="relative mb-3">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              placeholder="搜索数据类型"
-              className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400"
-              style={{ fontSize: 12 }}
-            />
-          </div>
-
+        <div className="w-[220px] border-r border-slate-200 pr-4 overflow-y-auto">
           <div>
             <div
               onClick={() => setMode("monitor")}
@@ -304,6 +307,7 @@ export function DeviceDataModal() {
                       onChange={() => setChecks({ ...checks, [n.k]: !checks[n.k] })}
                     />
                     <span style={{ fontSize: 13 }}>{n.name}</span>
+                    <span className="text-slate-400 ml-auto" style={{ fontSize: 11 }}>{n.unit}</span>
                   </label>
                 ))}
               </div>
@@ -440,7 +444,7 @@ export function DeviceDataModal() {
           <div className="flex-1 border border-slate-200 rounded-md bg-white p-4 min-h-0 flex flex-col">
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
               <div className="text-slate-700" style={{ fontSize: 13, fontWeight: 500 }}>
-                {isMonitor ? "倾角监测数据趋势" : "工况数据趋势"}
+                {getChartTitle()}
                 <span className="text-slate-400 ml-2" style={{ fontSize: 11 }}>
                   ({timeRange === "today" ? "今天" : timeRange === "7d" ? "近7天" : timeRange === "30d" ? "近30天" : `${customRange.start} ~ ${customRange.end}`})
                 </span>
